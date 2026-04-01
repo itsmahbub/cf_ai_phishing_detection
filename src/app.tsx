@@ -96,48 +96,36 @@ function isRawToolCallText(text: string) {
   );
 }
 
-function ProcessingBubble({ status }: { status: string }) {
-  const [stepIndex, setStepIndex] = useState(0);
+type ProcessingStage = "extract" | "cache" | "analyze" | "prepare";
 
-  useEffect(() => {
-    if (status !== "submitted" && status !== "streaming") {
-      setStepIndex(0);
-      return;
-    }
-
-    setStepIndex(0);
-
-    const timers = [
-      window.setTimeout(() => setStepIndex(1), 1200),
-      window.setTimeout(() => setStepIndex(2), 2600),
-      window.setTimeout(() => setStepIndex(3), 4400)
-    ];
-
-    return () => {
-      for (const timer of timers) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [status]);
-
+function ProcessingBubble({ stage }: { stage: ProcessingStage }) {
   const steps = [
     {
+      key: "extract" as const,
       title: "Extract message",
       detail: "Reading the message and extracting URLs"
     },
     {
+      key: "cache" as const,
       title: "Check known URLs",
       detail: "Looking in the shared reputation database"
     },
     {
+      key: "analyze" as const,
       title: "Analyze risk",
       detail: "Using AI to review the message for phishing signals"
     },
     {
+      key: "prepare" as const,
       title: "Prepare verdict",
       detail: "Writing the verdict and safest next step"
     }
   ];
+
+  const stepIndex = Math.max(
+    0,
+    steps.findIndex((step) => step.key === stage)
+  );
 
   return (
     <div className="bubble-row assistant">
@@ -573,6 +561,8 @@ function Chat() {
   const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [processingStage, setProcessingStage] =
+    useState<ProcessingStage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -584,10 +574,28 @@ function Chat() {
   });
 
   const { messages, sendMessage, clearHistory, stop, status } = useAgentChat({
-    agent
+    agent,
+    onData: (part) => {
+      if (part.type !== "data-phishguard-stage") return;
+      const data = part.data as { stage?: ProcessingStage };
+      if (
+        data.stage === "extract" ||
+        data.stage === "cache" ||
+        data.stage === "analyze" ||
+        data.stage === "prepare"
+      ) {
+        setProcessingStage(data.stage);
+      }
+    }
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
+
+  useEffect(() => {
+    if (!isStreaming) {
+      setProcessingStage(null);
+    }
+  }, [isStreaming]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -649,6 +657,7 @@ function Chat() {
 
     setInput("");
     setAttachments([]);
+    setProcessingStage("extract");
     sendMessage({ role: "user", parts });
 
     if (textareaRef.current) {
@@ -777,7 +786,9 @@ function Chat() {
               );
             })}
 
-            {isStreaming && <ProcessingBubble status={status} />}
+            {isStreaming && processingStage && (
+              <ProcessingBubble stage={processingStage} />
+            )}
 
             <div ref={messagesEndRef} />
           </div>

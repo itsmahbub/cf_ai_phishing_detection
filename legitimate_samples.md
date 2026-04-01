@@ -66,6 +66,14 @@ https://www.rivervalleybank.com/login
 
 If you do not recognize this transaction, call the number on the back of your card or sign in through the official mobile app.
 
+## Bank transaction notification (SMS)
+
+Discover Card Alert: A transaction of $7.99 at GREG MAT on March 22, 2026. No Action needed. See it at https://app.discover.com/ACTVT. Text STOP to end
+
+## Walmart delivery update (SMS)
+
+Walmart: Great news! Your First Magic Painting F... and 7 other items arrived. View: https://w-mt.co/g/lkWSwn Reply HELP for info; STOP to opt out
+
 ## Package delivery update
 
 Subject: Delivery update for package 1Z84A23
