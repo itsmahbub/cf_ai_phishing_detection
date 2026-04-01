@@ -4,6 +4,8 @@ PhishGuard is a Cloudflare-native phishing detection app for suspicious SMS, ema
 
 It gives users a fast verdict before they click, reply, or pay. Known URLs are answered from a shared reputation database, and new URLs can be inspected later through a background dynamic-analysis workflow.
 
+Live app: [https://cf-ai-phishing-detection.alam-mahbub214.workers.dev/](https://cf-ai-phishing-detection.alam-mahbub214.workers.dev/)
+
 For a deeper technical walkthrough, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Features
@@ -15,6 +17,20 @@ For a deeper technical walkthrough, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 - Background dynamic URL analysis with Cloudflare Workflow
 - Dynamic page inspection with Browser Rendering
 - Private admin portal for reviewing stored records
+
+## Screenshots
+
+### Client app
+
+![PhishGuard client chat UI](./img/client-chatbox.png)
+
+### Admin dashboard
+
+![PhishGuard admin dashboard](./img/admin-dashboard.png)
+
+### Admin detail view
+
+![PhishGuard admin detail view](./img/admin-detail.png)
 
 ## Cloudflare services used
 
@@ -73,6 +89,10 @@ npm run deploy
 ```
 
 After deployment, Cloudflare will return a public `*.workers.dev` URL for the app.
+
+Current deployment:
+
+- [https://cf-ai-phishing-detection.alam-mahbub214.workers.dev/](https://cf-ai-phishing-detection.alam-mahbub214.workers.dev/)
 
 ## Admin portal
 
