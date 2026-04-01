@@ -8,14 +8,13 @@ For a deeper technical walkthrough, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Features
 
-- paste suspicious SMS or email text
-- upload message screenshots
-- static phishing analysis with Workers AI
-- shared URL reputation database for cache hits
-- duplicate-message detection
-- background dynamic URL analysis with Cloudflare Workflow
-- dynamic page inspection with Browser Rendering
-- private admin portal for reviewing stored records
+- Paste suspicious SMS or email text
+- Upload message screenshots
+- Static phishing analysis with Workers AI
+- Shared URL reputation database for cache hits
+- Background dynamic URL analysis with Cloudflare Workflow
+- Dynamic page inspection with Browser Rendering
+- Private admin portal for reviewing stored records
 
 ## Cloudflare services used
 
@@ -31,7 +30,7 @@ For a deeper technical walkthrough, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 1. User submits suspicious content.
 2. The app extracts the message text, URLs, and phishing indicators.
 3. It checks the shared reputation database first.
-4. If the URL or message is already known, it returns the stored verdict.
+4. If the URL is already known, it returns the stored verdict.
 5. If it is new, the app runs static AI analysis and returns a verdict.
 6. New URLs are queued for background dynamic analysis.
 
@@ -81,23 +80,17 @@ The admin portal lives at `/admin`.
 
 It shows:
 
-- stored URLs
-- static verdict
-- dynamic analysis state
-- dynamic analysis verdict
-- live/not-live status
-- tags and detail view
+- Stored URLs
+- Static verdict
+- Dynamic analysis state
+- Dynamic analysis verdict
+- Live/not-live status
+- Tags and detail view
 
 Protect it with Cloudflare Access:
 
 - `/admin`
 - `/admin/api/*`
-
-Optional extra check:
-
-```bash
-npx wrangler secret put ADMIN_EMAIL
-```
 
 ## Project structure
 
