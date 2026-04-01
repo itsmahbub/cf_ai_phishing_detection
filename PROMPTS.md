@@ -77,6 +77,8 @@
 
 37. Instead of timed UI progress, can we make the backend emit real stage updates so the progress reflects the actual pipeline?
 
-38. Now write a simple README with setup, deploy, and feature overview.
+38. The chat session seems to be shared across different clients. Please make sure each user gets a separate session and chat history instead of everyone sharing the same chatbox state.
 
-39. Now write a technical architecture document explaining the implementation and future improvements.
+39. Now write a simple README with setup, deploy, and feature overview.
+
+40. Now write a technical architecture document explaining the implementation and future improvements.

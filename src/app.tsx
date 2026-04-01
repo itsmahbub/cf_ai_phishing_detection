@@ -40,6 +40,21 @@ interface Attachment {
   mediaType: string;
 }
 
+const CHAT_SESSION_STORAGE_KEY = "phishguard-chat-session";
+
+function getOrCreateChatSessionName() {
+  if (typeof window === "undefined") {
+    return "chat-session";
+  }
+
+  const existing = window.sessionStorage.getItem(CHAT_SESSION_STORAGE_KEY);
+  if (existing) return existing;
+
+  const created = `chat-${crypto.randomUUID()}`;
+  window.sessionStorage.setItem(CHAT_SESSION_STORAGE_KEY, created);
+  return created;
+}
+
 function createAttachment(file: File): Attachment {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -674,12 +689,14 @@ function Chat() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [processingStage, setProcessingStage] =
     useState<ProcessingStage | null>(null);
+  const [sessionName] = useState(() => getOrCreateChatSessionName());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const agent = useAgent<ChatAgent, PhishingAgentState>({
     agent: "ChatAgent",
+    name: sessionName,
     onOpen: useCallback(() => setConnected(true), []),
     onClose: useCallback(() => setConnected(false), [])
   });
