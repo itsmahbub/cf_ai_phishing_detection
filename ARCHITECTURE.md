@@ -262,65 +262,23 @@ The app is intended only for phishing review. The extraction model decides wheth
 
 ### Admin protection
 
-The admin portal is intended to be protected with Cloudflare Access. An optional `ADMIN_EMAIL` check can be used as an additional server-side guard.
+The admin portal is intended to be protected with Cloudflare Access.
 
 ### Operational safety
 
 Dynamic URL inspection runs in the background instead of blocking the user-facing result. This reduces user-facing latency and isolates dynamic review logic from the main chat experience.
 
-## Known limitations
-
-- The user-facing progress checklist is currently UI-timed, not backend-driven.
-- Dynamic analysis is only performed for URLs, not for message-only submissions.
-- Fingerprint cleanup during delete is simple and based on URL membership.
-- Screenshots are stored inline as data URLs instead of a dedicated blob store such as R2.
-- The reputation store currently uses Durable Object storage directly rather than a more query-friendly relational design.
-- OCR-like extraction quality for screenshots depends on the model and screenshot clarity.
-- Dynamic page inspection is useful, but it is not a full malware sandbox.
-
 ## Future improvements
 
-### Product improvements
-
-- backend-driven progress events instead of timed UI progress steps
-- search and sorting in admin by URL, date, hit count, or risk
-- pagination in admin for larger datasets
-- richer user verdict cards instead of plain markdown-like text
-- extension-first UX for checking links directly from browser pages
-
-### Detection improvements
-
-- stronger URL/domain enrichment such as ASN, registrar age, redirect chains, and domain reputation
-- domain-to-brand verification against official known domains
-- better screenshot OCR and visual-logo matching
-- more nuanced treatment of legitimate-but-urgent messages
-- campaign clustering beyond exact duplicate fingerprints
-
-### Storage improvements
-
-- move screenshots to R2
-- add analytics tables for verdict trends and repeat campaigns
-- move to a more query-friendly SQL-backed schema for admin reporting
-- keep deletion audit trails for admin operations
-
-### Security improvements
-
-- signed admin actions and audit logs
-- stricter admin API authorization model
-- rate limiting for public submissions
-- abuse monitoring for repeated non-phishing usage
-
-### Workflow improvements
-
-- retry and backoff policy tuning
-- explicit workflow stage timestamps in admin
-- dynamic verdict refresh for stale URLs
-- optional human-review queue for uncertain cases
-
-## Recommended maintenance guidelines
-
-- keep prompts narrow and task-specific
-- treat all user/page content as untrusted
-- prefer simple data structures that are easy to inspect in code review
-- keep the public UX fast, and move expensive investigation into background workflows
-- favor deterministic operational behavior over clever UI complexity
+- Stronger URL/domain enrichment such as ASN, registrar age, redirect chains, and domain reputation
+- Domain-to-brand verification against official known domains
+- Better screenshot OCR and visual-logo matching
+- More nuanced treatment of legitimate-but-urgent messages
+- Campaign clustering beyond exact duplicate fingerprints
+- Add analytics tables for verdict trends and repeat campaigns
+- Keep deletion audit trails for admin operations
+- Move to a more query-friendly SQL-backed schema for admin reporting
+- Rate limiting for public submissions
+- Abuse monitoring for repeated non-phishing usage
+- Retry and backoff policy tuning for background task
+- Human-review queue for uncertain cases
