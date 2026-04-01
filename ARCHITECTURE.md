@@ -19,7 +19,8 @@ The public app lets a user paste message content or upload a screenshot and rece
 
 - Accept suspicious SMS/email text
 - Accept screenshot uploads
-- Extract URLs and key phishing indicators using Workers AI
+- Use a vision-capable model to transcribe screenshot-only submissions into plain message text
+- Extract URLs and key phishing indicators from submitted or transcribed text using Workers AI
 - Check a shared URL/message reputation store before running deeper analysis
 - Return a short verdict for the user:
   - likely phishing
@@ -80,9 +81,10 @@ The chat experience is built on Cloudflare Agents. The `ChatAgent` class handles
 
 Workers AI is used in three model calls:
 
-1. To extract structured phishing-review data from the user submission, using a vision-capable model for image-only screenshots
-2. To generate the main phishing verdict from the extracted structured data
-3. To analyze rendered landing-page metadata and visible text in the background workflow to infer impersonated brand and phishing risk
+1. To transcribe screenshot-only submissions into plain message text with a vision-capable model
+2. To extract structured phishing-review data from submitted or transcribed text
+3. To generate the main phishing verdict from the extracted structured data
+4. To analyze rendered landing-page metadata and visible text in the background workflow to infer impersonated brand and phishing risk
 
 ### Durable Objects
 
@@ -120,7 +122,8 @@ Key responsibilities:
 
 - extract the latest user submission
 - convert image uploads into model-friendly message parts
-- call Workers AI for structured extraction
+- transcribe screenshot-only submissions into text with a vision model
+- call Workers AI for structured extraction from text
 - check the reputation store
 - return cached results when possible
 - call Workers AI for a fresh verdict when needed
@@ -211,18 +214,19 @@ The dynamic analysis object includes:
 ### Public analysis flow
 
 1. User submits a message or screenshot.
-2. The agent extracts structured information with Workers AI.
-3. URLs are normalized.
-4. The message text is normalized and fingerprinted.
-5. The app checks the shared reputation database.
-6. If a known URL or duplicate message exists:
+2. If the submission is screenshot-only, a vision-capable model transcribes it into plain message text.
+3. The agent extracts structured information from the message text with Workers AI.
+4. URLs are normalized.
+5. The message text is normalized and fingerprinted.
+6. The app checks the shared reputation database.
+7. If a known URL or duplicate message exists:
    - return the stored result immediately
    - if dynamic analysis already completed, prefer that richer stored verdict
-7. If no stored match exists:
+8. If no stored match exists:
    - run the static phishing verdict AI call
    - return the verdict to the user
-8. Persist the record in the shared store.
-9. Trigger background dynamic analysis for any extracted URLs.
+9. Persist the record in the shared store.
+10. Trigger background dynamic analysis for any extracted URLs.
 
 ### Dynamic analysis flow
 

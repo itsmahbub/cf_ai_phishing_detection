@@ -96,6 +96,117 @@ function isRawToolCallText(text: string) {
   );
 }
 
+type ParsedAssessmentMessage = {
+  verdict: string;
+  tone: "phishing" | "legitimate" | "review" | "neutral";
+  confidence?: string;
+  url?: string;
+  why?: string;
+  details: string[];
+  next?: string;
+};
+
+function parseAssessmentMessage(text: string): ParsedAssessmentMessage | null {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return null;
+
+  const verdictMatch = lines[0].match(/^\*\*(.+)\*\*$/);
+  if (!verdictMatch) return null;
+
+  const verdict = verdictMatch[1];
+  const tone = verdict.toLowerCase().includes("phishing")
+    ? "phishing"
+    : verdict.toLowerCase().includes("legitimate")
+      ? "legitimate"
+      : verdict.toLowerCase().includes("review")
+        ? "review"
+        : "neutral";
+
+  const parsed: ParsedAssessmentMessage = {
+    verdict,
+    tone,
+    details: []
+  };
+
+  for (const line of lines.slice(1)) {
+    if (line.startsWith("Confidence: ")) {
+      parsed.confidence = line.replace(/^Confidence:\s*/, "");
+      continue;
+    }
+    if (line.startsWith("URL: ")) {
+      parsed.url = line.replace(/^URL:\s*/, "");
+      continue;
+    }
+    if (line.startsWith("Why: ")) {
+      parsed.why = line.replace(/^Why:\s*/, "");
+      continue;
+    }
+    if (line.startsWith("Next: ")) {
+      parsed.next = line.replace(/^Next:\s*/, "");
+      continue;
+    }
+    if (line.startsWith("Detail: ")) {
+      parsed.details.push(line.replace(/^Detail:\s*/, ""));
+      continue;
+    }
+
+    parsed.details.push(line);
+  }
+
+  return parsed;
+}
+
+function AssessmentBubble({ text }: { text: string }) {
+  const parsed = parseAssessmentMessage(text);
+  if (!parsed) return null;
+
+  return (
+    <div className={`assessment-card ${parsed.tone}`}>
+      <div className="assessment-verdict">{parsed.verdict}</div>
+      <div className="assessment-rows">
+        {parsed.confidence && (
+          <div className="assessment-row">
+            <span className="assessment-label">Confidence</span>
+            <span>{parsed.confidence}</span>
+          </div>
+        )}
+        {parsed.url && (
+          <div className="assessment-row">
+            <span className="assessment-label">URL</span>
+            <a href={parsed.url} target="_blank" rel="noreferrer">
+              {parsed.url}
+            </a>
+          </div>
+        )}
+        {parsed.why && (
+          <div className="assessment-row assessment-row-stack">
+            <span className="assessment-label">Why</span>
+            <span>{parsed.why}</span>
+          </div>
+        )}
+        {parsed.details.map((detail, index) => (
+          <div
+            key={`${parsed.verdict}-detail-${index}`}
+            className="assessment-detail"
+          >
+            {detail}
+          </div>
+        ))}
+        {parsed.next && (
+          <div className="assessment-row assessment-row-stack">
+            <span className="assessment-label">Next</span>
+            <span>{parsed.next}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type ProcessingStage = "extract" | "cache" | "analyze" | "prepare";
 
 function ProcessingBubble({ stage }: { stage: ProcessingStage }) {
@@ -770,14 +881,18 @@ function Chat() {
                           className="bubble-row assistant"
                         >
                           <div className="message-bubble assistant-bubble">
-                            <Streamdown
-                              className="sd-theme"
-                              plugins={{ code }}
-                              controls={false}
-                              isAnimating={isLastAssistant && isStreaming}
-                            >
-                              {text}
-                            </Streamdown>
+                            {parseAssessmentMessage(text) ? (
+                              <AssessmentBubble text={text} />
+                            ) : (
+                              <Streamdown
+                                className="sd-theme"
+                                plugins={{ code }}
+                                controls={false}
+                                isAnimating={isLastAssistant && isStreaming}
+                              >
+                                {text}
+                              </Streamdown>
+                            )}
                           </div>
                         </div>
                       );

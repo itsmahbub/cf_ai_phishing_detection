@@ -37,44 +37,46 @@
 
 17. How expensive is to use vision capable model? Do cloudflare has free tier for vision models?
 
-18. Now I want to save known phishing and legitimate URLs so future users can benefit from previous analysis. What is a simple Cloudflare-native way to implement that?
+18. For screenshot input, I want the vision model to only transcribe the screenshot into plain message text. Then I want the normal text extraction and static analysis pipeline to handle it just like pasted text. Can you help me structure it that way?
 
-19. Please help me make the app check the database first and only run deeper AI analysis if the URL is not already known.
+19. Now I want to save known phishing and legitimate URLs so future users can benefit from previous analysis. What is a simple Cloudflare-native way to implement that?
 
-20. When user submits a suspicious email or SMS content, I want to use Worker AI to extract the URL and different phishing related properties like urgency, threat, pressure (things are typically used in phishing emails/sms), then look up database with the URL if it already exists or not, if exists it will respond with the stored verdict, if not, then it will ask Worker AI to analyze the message to determine if it is phishing or not. I'm thinking to use Workflow to perform dynamic analysis of the site for deeper analyisis of the site. How is this idea to utilize these cloudflare components?
+20. Please help me make the app check the database first and only run deeper AI analysis if the URL is not already known.
 
-21. Help me add a background workflow so new URLs can be inspected later without making the user wait for the full deep analysis.
+21. When user submits a suspicious email or SMS content, I want to use Worker AI to extract the URL and different phishing related properties like urgency, threat, pressure (things are typically used in phishing emails/sms), then look up database with the URL if it already exists or not, if exists it will respond with the stored verdict, if not, then it will ask Worker AI to analyze the message to determine if it is phishing or not. I'm thinking to use Workflow to perform dynamic analysis of the site for deeper analyisis of the site. How is this idea to utilize these cloudflare components?
 
-22. For dynamic analysis, what is the safest Cloudflare-native way to load a suspicious URL for inspection?
+22. Help me add a background workflow so new URLs can be inspected later without making the user wait for the full deep analysis.
 
-23. Can you update the dynamic analysis workflow so it also captures a screenshot of the loaded page and stores it with the result?
+23. For dynamic analysis, what is the safest Cloudflare-native way to load a suspicious URL for inspection?
 
-24. The dynamic landing-page analysis is using text from the rendered page. Can you help me understand how that works, and whether we should also use a vision model there?
+24. Can you update the dynamic analysis workflow so it also captures a screenshot of the loaded page and stores it with the result?
 
-25. Please help me store dynamic-analysis status like queued, inspecting, completed, and failed, so I can see workflow progress later.
+25. The dynamic landing-page analysis is using text from the rendered page. Can you help me understand how that works, and whether we should also use a vision model there?
 
-26. If dynamic analysis has already completed for a known URL, I want the app to prefer that richer stored result when responding to users.
+26. Please help me store dynamic-analysis status like queued, inspecting, completed, and failed, so I can see workflow progress later.
 
-27. I want a private admin portal to review stored phishing and legitimate URLs and their analysis details.
+27. If dynamic analysis has already completed for a known URL, I want the app to prefer that richer stored result when responding to users.
 
-28. How can I protect the admin portal with Cloudflare Access instead of building my own login system?
+28. I want a private admin portal to review stored phishing and legitimate URLs and their analysis details.
 
-29. The admin page feels too fancy. Please simplify it into a normal operations table with useful columns, filtering, bulk delete, and a detail page.
+29. How can I protect the admin portal with Cloudflare Access instead of building my own login system?
 
-30. The client page feels too complex. Please simplify it to a title, short description, chat history, and input box.
+30. The admin page feels too fancy. Please simplify it into a normal operations table with useful columns, filtering, bulk delete, and a detail page.
 
-31. The app feels unresponsive while analysis is happening. Please show progress steps so the user knows what is happening.
+31. The client page feels too complex. Please simplify it to a title, short description, chat history, and input box.
 
-32. The active progress step feels stuck. Can you add a spinner or some visual indicator so it feels like the system is still working?
+32. The app feels unresponsive while analysis is happening. Please show progress steps so the user knows what is happening.
 
-33. The progress steps should move forward only. Completed steps should stay completed, and the UI should not loop back to earlier steps.
+33. The active progress step feels stuck. Can you add a spinner or some visual indicator so it feels like the system is still working?
 
-34. The progress steps should better reflect the real pipeline. Please include extraction, cache check, AI analysis, and final verdict preparation.
+34. The progress steps should move forward only. Completed steps should stay completed, and the UI should not loop back to earlier steps.
 
-35. Sometimes obviously phishing content is getting a cautious or unclear result. Can you help me make the verdicts more decisive when the evidence is strong?
+35. The progress steps should better reflect the real pipeline. Please include extraction, cache check, AI analysis, and final verdict preparation.
 
-36. Instead of timed UI progress, can we make the backend emit real stage updates so the progress reflects the actual pipeline?
+36. Sometimes obviously phishing content is getting a cautious or unclear result. Can you help me make the verdicts more decisive when the evidence is strong?
 
-37. Now write a simple README with setup, deploy, and feature overview.
+37. Instead of timed UI progress, can we make the backend emit real stage updates so the progress reflects the actual pipeline?
 
-38. Now write a technical architecture document explaining the implementation and future improvements.
+38. Now write a simple README with setup, deploy, and feature overview.
+
+39. Now write a technical architecture document explaining the implementation and future improvements.

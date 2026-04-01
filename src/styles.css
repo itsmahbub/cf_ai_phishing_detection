@@ -472,6 +472,62 @@ button {
   border-bottom-left-radius: 8px;
 }
 
+.assessment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assessment-verdict {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.assessment-card.phishing .assessment-verdict {
+  color: var(--danger);
+}
+
+.assessment-card.legitimate .assessment-verdict {
+  color: var(--success);
+}
+
+.assessment-card.review .assessment-verdict {
+  color: var(--warning);
+}
+
+.assessment-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assessment-row,
+.assessment-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assessment-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.assessment-row a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  word-break: break-word;
+}
+
+.assessment-detail {
+  color: var(--ink);
+}
+
 .processing-bubble {
   min-width: 280px;
 }
