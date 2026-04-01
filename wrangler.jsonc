@@ -1,20 +1,32 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "agent-starter",
+  "name": "cf-ai-phishing-detection",
   "main": "src/server.ts",
   "compatibility_date": "2026-03-02",
   "compatibility_flags": ["nodejs_compat"],
   "ai": { "binding": "AI", "remote": true },
+  "browser": { "binding": "BROWSER" },
+  "workflows": [
+    {
+      "binding": "PHISHGUARD_ENRICHMENT",
+      "name": "phishguard-enrichment",
+      "class_name": "PhishingEnrichmentWorkflow"
+    }
+  ],
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/agents/*", "/oauth/*"]
+    "run_worker_first": ["/agents/*", "/oauth/*", "/admin/api/*"]
   },
   "durable_objects": {
     "bindings": [
       {
         "class_name": "ChatAgent",
         "name": "ChatAgent"
+      },
+      {
+        "class_name": "UrlReputationStore",
+        "name": "UrlReputationStore"
       }
     ]
   },
@@ -22,6 +34,10 @@
     {
       "new_sqlite_classes": ["ChatAgent"],
       "tag": "v1"
+    },
+    {
+      "new_sqlite_classes": ["UrlReputationStore"],
+      "tag": "v2"
     }
   ]
 }

@@ -3,11 +3,15 @@
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/server");
-		durableNamespaces: "ChatAgent";
+		durableNamespaces: "ChatAgent" | "UrlReputationStore";
 	}
 	interface Env {
+		ADMIN_EMAIL?: string;
 		AI: Ai;
+		BROWSER: import("@cloudflare/puppeteer").BrowserWorker;
 		ChatAgent: DurableObjectNamespace<import("./src/server").ChatAgent>;
+		UrlReputationStore: DurableObjectNamespace<import("./src/server").UrlReputationStore>;
+		PHISHGUARD_ENRICHMENT: Workflow<import("./src/workflow").EnrichmentParams>;
 	}
 }
 interface Env extends Cloudflare.Env {}

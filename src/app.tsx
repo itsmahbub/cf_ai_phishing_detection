@@ -1,45 +1,37 @@
-import { Suspense, useCallback, useState, useEffect, useRef } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
-import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import type { MCPServersState } from "agents";
-import type { ChatAgent } from "./server";
+import type { UIMessage } from "ai";
+import type {
+  AssessmentRecord,
+  ChatAgent,
+  DynamicAnalysis,
+  PhishingAgentState,
+  ReputationListItem
+} from "./server";
 import {
   Badge,
   Button,
   Empty,
   InputArea,
   Surface,
-  Switch,
   Text
 } from "@cloudflare/kumo";
-import { Toasty, useKumoToastManager } from "@cloudflare/kumo/components/toast";
+import { Toasty } from "@cloudflare/kumo/components/toast";
 import { Streamdown } from "streamdown";
 import { code } from "@streamdown/code";
 import {
+  ArrowLeftIcon,
+  EyeIcon,
   PaperPlaneRightIcon,
-  StopIcon,
-  TrashIcon,
-  GearIcon,
-  ChatCircleDotsIcon,
+  WarningIcon,
+  ShieldSlashIcon,
+  ArrowClockwiseIcon,
   CircleIcon,
-  MoonIcon,
-  SunIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  BrainIcon,
-  CaretDownIcon,
-  BugIcon,
-  PlugsConnectedIcon,
-  PlusIcon,
-  SignInIcon,
-  XIcon,
-  WrenchIcon,
   PaperclipIcon,
-  ImageIcon
+  XIcon,
+  DeviceMobileIcon
 } from "@phosphor-icons/react";
-
-// ── Attachment helpers ────────────────────────────────────────────────
 
 interface Attachment {
   id: string;
@@ -66,275 +58,533 @@ function fileToDataUri(file: File): Promise<string> {
   });
 }
 
-// ── Small components ──────────────────────────────────────────────────
+function verdictLabel(verdict: AssessmentRecord["verdict"] | null | undefined) {
+  if (verdict === "likely-phishing") return "Likely phishing";
+  if (verdict === "likely-legitimate") return "Likely legitimate";
+  if (verdict === "needs-human-review") return "Needs review";
+  return "No verdict yet";
+}
 
-function ThemeToggle() {
-  const [dark, setDark] = useState(
-    () => document.documentElement.getAttribute("data-mode") === "dark"
-  );
+function verdictTone(verdict: AssessmentRecord["verdict"] | null | undefined) {
+  if (verdict === "likely-phishing") return "destructive";
+  if (verdict === "likely-legitimate") return "primary";
+  return "secondary";
+}
 
-  const toggle = useCallback(() => {
-    const next = !dark;
-    setDark(next);
-    const mode = next ? "dark" : "light";
-    document.documentElement.setAttribute("data-mode", mode);
-    document.documentElement.style.colorScheme = mode;
-    localStorage.setItem("theme", mode);
-  }, [dark]);
+function dynamicStatusLabel(status: DynamicAnalysis["status"] | undefined) {
+  if (status === "queued") return "Queued";
+  if (status === "inspecting") return "Inspecting";
+  if (status === "completed") return "Completed";
+  if (status === "failed") return "Failed";
+  return "Not requested";
+}
+
+function isRawToolCallText(text: string) {
+  const trimmed = text.trim();
+
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+    return false;
+  }
 
   return (
-    <Button
-      variant="secondary"
-      shape="square"
-      icon={dark ? <SunIcon size={16} /> : <MoonIcon size={16} />}
-      onClick={toggle}
-      aria-label="Toggle theme"
-    />
+    (trimmed.includes('"type": "function"') ||
+      trimmed.includes('"type":"function"')) &&
+    (trimmed.includes('"name": "inspectMessage"') ||
+      trimmed.includes('"name":"inspectMessage"') ||
+      trimmed.includes('"name": "recordAssessment"') ||
+      trimmed.includes('"name":"recordAssessment"'))
   );
 }
 
-// ── Tool rendering ────────────────────────────────────────────────────
+function ProcessingBubble({ status }: { status: string }) {
+  const [stepIndex, setStepIndex] = useState(0);
 
-function ToolPartView({
-  part,
-  addToolApprovalResponse
-}: {
-  part: UIMessage["parts"][number];
-  addToolApprovalResponse: (response: {
-    id: string;
-    approved: boolean;
-  }) => void;
-}) {
-  if (!isToolUIPart(part)) return null;
-  const toolName = getToolName(part);
+  useEffect(() => {
+    if (status !== "submitted" && status !== "streaming") {
+      setStepIndex(0);
+      return;
+    }
 
-  // Completed
-  if (part.state === "output-available") {
+    setStepIndex(0);
+
+    const timers = [
+      window.setTimeout(() => setStepIndex(1), 1200),
+      window.setTimeout(() => setStepIndex(2), 2600),
+      window.setTimeout(() => setStepIndex(3), 4400)
+    ];
+
+    return () => {
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [status]);
+
+  const steps = [
+    {
+      title: "Extract message",
+      detail: "Reading the message and extracting URLs"
+    },
+    {
+      title: "Check known URLs",
+      detail: "Looking in the shared reputation database"
+    },
+    {
+      title: "Analyze risk",
+      detail: "Using AI to review the message for phishing signals"
+    },
+    {
+      title: "Prepare verdict",
+      detail: "Writing the verdict and safest next step"
+    }
+  ];
+
+  return (
+    <div className="bubble-row assistant">
+      <div className="message-bubble assistant-bubble processing-bubble">
+        <Text size="sm" bold>
+          Analyzing message...
+        </Text>
+        <div className="processing-steps">
+          {steps.map((step, index) => {
+            const state =
+              index < stepIndex
+                ? "done"
+                : index === stepIndex
+                  ? "active"
+                  : "todo";
+
+            return (
+              <div key={step.title} className={`processing-step ${state}`}>
+                <span className="processing-step-marker">
+                  {state === "active" && (
+                    <span className="processing-spinner" aria-hidden="true" />
+                  )}
+                </span>
+                <div>
+                  <Text size="xs" bold>
+                    {step.title}
+                  </Text>
+                  <Text size="xs" variant="secondary">
+                    {step.detail}
+                  </Text>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function updateAdminUrl(selectedUrl: string | null) {
+  const url = new URL(window.location.href);
+  if (selectedUrl) {
+    url.searchParams.set("url", selectedUrl);
+  } else {
+    url.searchParams.delete("url");
+  }
+  window.history.replaceState({}, "", url);
+}
+
+function AdminPortal() {
+  const [items, setItems] = useState<ReputationListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<
+    "all" | "likely-phishing" | "likely-legitimate"
+  >("all");
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const detailsUrl = new URL(window.location.href).searchParams.get("url");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch("/admin/api/reputation");
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!response.ok) {
+          throw new Error(
+            response.status === 403
+              ? "Admin access is restricted. Protect /admin with Cloudflare Access and configure ADMIN_EMAIL."
+              : `Failed to load admin data (${response.status})`
+          );
+        }
+        if (!contentType.includes("application/json")) {
+          throw new Error(
+            "Admin API returned HTML instead of JSON. Protect /admin with Cloudflare Access and make sure /admin/api/* is routed to the Worker."
+          );
+        }
+
+        const data = (await response.json()) as { items: ReputationListItem[] };
+        if (!cancelled) {
+          setItems(data.items);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error ? loadError.message : "Unknown error"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedItem = detailsUrl
+    ? (items.find((item) => item.url === detailsUrl) ?? null)
+    : null;
+
+  const visibleItems = items.filter((item) => {
+    if (filter === "all") return true;
+    return item.verdict === filter;
+  });
+
+  const allVisibleSelected =
+    visibleItems.length > 0 &&
+    visibleItems.every((item) => selectedUrls.includes(item.url));
+
+  const buildTags = (item: ReputationListItem) => {
+    const tags = [...item.extractionIndicators];
+    if (item.dynamicAnalysis.inferredBrand) {
+      tags.push(`brand:${item.dynamicAnalysis.inferredBrand}`);
+    }
+    return [...new Set(tags)].slice(0, 4);
+  };
+
+  const dynamicVerdictLabel = (item: ReputationListItem) =>
+    item.dynamicAnalysis.verdict
+      ? verdictLabel(item.dynamicAnalysis.verdict)
+      : "Pending";
+
+  const liveStatusLabel = (item: ReputationListItem) => {
+    if (item.dynamicAnalysis.liveStatus === "live") return "Live";
+    if (item.dynamicAnalysis.liveStatus === "not-live") return "Not live";
+    return "Unknown";
+  };
+
+  const toggleSelectedUrl = useCallback((url: string) => {
+    setSelectedUrls((current) =>
+      current.includes(url)
+        ? current.filter((item) => item !== url)
+        : [...current, url]
+    );
+  }, []);
+
+  const toggleAllVisible = useCallback(() => {
+    setSelectedUrls((current) => {
+      if (allVisibleSelected) {
+        return current.filter(
+          (url) => !visibleItems.some((item) => item.url === url)
+        );
+      }
+
+      return [
+        ...new Set([...current, ...visibleItems.map((item) => item.url)])
+      ];
+    });
+  }, [allVisibleSelected, visibleItems]);
+
+  const openDetailsInNewTab = useCallback((url: string) => {
+    const target = new URL(window.location.href);
+    target.searchParams.set("url", url);
+    window.open(target.toString(), "_blank", "noopener,noreferrer");
+  }, []);
+
+  const deleteSelected = useCallback(async () => {
+    if (selectedUrls.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedUrls.length} selected record(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsDeleting(true);
+      for (const url of selectedUrls) {
+        const response = await fetch(
+          `/admin/api/reputation?url=${encodeURIComponent(url)}`,
+          { method: "DELETE" }
+        );
+        if (!response.ok) {
+          throw new Error(`Delete failed for ${url}`);
+        }
+      }
+
+      setItems((current) =>
+        current.filter((entry) => !selectedUrls.includes(entry.url))
+      );
+      setSelectedUrls([]);
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Delete failed"
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [selectedUrls]);
+
+  if (selectedItem) {
     return (
-      <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2 mb-1">
-            <GearIcon size={14} className="text-kumo-inactive" />
-            <Text size="xs" variant="secondary" bold>
-              {toolName}
-            </Text>
-            <Badge variant="secondary">Done</Badge>
+      <div className="admin-simple-shell">
+        <div className="admin-toolbar">
+          <Button
+            variant="secondary"
+            icon={<ArrowLeftIcon size={16} />}
+            onClick={() => {
+              updateAdminUrl(null);
+              window.location.href = new URL(window.location.href).toString();
+            }}
+          >
+            Back to table
+          </Button>
+        </div>
+
+        <Surface className="admin-detail-card">
+          <div className="history-item-top">
+            <Badge variant={verdictTone(selectedItem.verdict)}>
+              {verdictLabel(selectedItem.verdict)}
+            </Badge>
+            <span>{selectedItem.url}</span>
           </div>
-          <div className="font-mono">
+          <Text size="sm" bold>
+            Static analysis
+          </Text>
+          <Text size="sm" variant="secondary">
+            {selectedItem.summary}
+          </Text>
+          <Text size="xs" variant="secondary">
+            {selectedItem.messageText}
+          </Text>
+          <Text size="xs" variant="secondary">
+            Tags:{" "}
+            {buildTags(selectedItem).length > 0
+              ? buildTags(selectedItem).join(", ")
+              : "none"}
+          </Text>
+          <div className="prompt-stack">
+            {selectedItem.reasons.map((reason) => (
+              <div
+                key={`${selectedItem.url}-${reason}`}
+                className="prompt-chip"
+              >
+                {reason}
+              </div>
+            ))}
+          </div>
+
+          <Text size="sm" bold>
+            Dynamic analysis
+          </Text>
+          <Text size="xs" variant="secondary">
+            Status: {dynamicStatusLabel(selectedItem.dynamicAnalysis.status)} •
+            Live: {liveStatusLabel(selectedItem)} • Verdict:{" "}
+            {dynamicVerdictLabel(selectedItem)}
+          </Text>
+          {selectedItem.dynamicAnalysis.inferredBrand && (
             <Text size="xs" variant="secondary">
-              {JSON.stringify(part.output, null, 2)}
+              Inferred brand: {selectedItem.dynamicAnalysis.inferredBrand}
             </Text>
-          </div>
+          )}
+          {selectedItem.dynamicAnalysis.brandDomainMatch && (
+            <Text size="xs" variant="secondary">
+              Brand vs URL: {selectedItem.dynamicAnalysis.brandDomainMatch}
+            </Text>
+          )}
+          {selectedItem.dynamicAnalysis.summary && (
+            <Text size="sm" variant="secondary">
+              {selectedItem.dynamicAnalysis.summary}
+            </Text>
+          )}
+          {selectedItem.dynamicAnalysis.screenshotDataUrl && (
+            <div className="analysis-screenshot">
+              <img
+                src={selectedItem.dynamicAnalysis.screenshotDataUrl}
+                alt={`Captured page screenshot for ${selectedItem.url}`}
+              />
+            </div>
+          )}
+          {selectedItem.dynamicAnalysis.reasons.length > 0 && (
+            <div className="prompt-stack">
+              {selectedItem.dynamicAnalysis.reasons.map((reason) => (
+                <div
+                  key={`${selectedItem.url}-dynamic-${reason}`}
+                  className="prompt-chip"
+                >
+                  {reason}
+                </div>
+              ))}
+            </div>
+          )}
         </Surface>
       </div>
     );
   }
 
-  // Needs approval
-  if ("approval" in part && part.state === "approval-requested") {
-    const approvalId = (part.approval as { id?: string })?.id;
-    return (
-      <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-3 rounded-xl ring-2 ring-kumo-warning">
-          <div className="flex items-center gap-2 mb-2">
-            <GearIcon size={14} className="text-kumo-warning" />
+  return (
+    <div className="admin-simple-shell">
+      <Surface className="admin-table-card">
+        <div className="admin-toolbar">
+          <div className="admin-toolbar-group">
             <Text size="sm" bold>
-              Approval needed: {toolName}
+              Reputation records
             </Text>
-          </div>
-          <div className="font-mono mb-3">
-            <Text size="xs" variant="secondary">
-              {JSON.stringify(part.input, null, 2)}
-            </Text>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<CheckCircleIcon size={14} />}
-              onClick={() => {
-                if (approvalId) {
-                  addToolApprovalResponse({ id: approvalId, approved: true });
-                }
-              }}
+            <select
+              className="admin-select"
+              value={filter}
+              onChange={(event) =>
+                setFilter(
+                  event.target.value as
+                    | "all"
+                    | "likely-phishing"
+                    | "likely-legitimate"
+                )
+              }
             >
-              Approve
+              <option value="all">All</option>
+              <option value="likely-phishing">Phishing</option>
+              <option value="likely-legitimate">Legitimate</option>
+            </select>
+          </div>
+
+          <div className="admin-toolbar-group">
+            <Button
+              variant="secondary"
+              disabled={selectedUrls.length === 0 || isDeleting}
+              onClick={deleteSelected}
+            >
+              Delete selected
             </Button>
             <Button
               variant="secondary"
-              size="sm"
-              icon={<XCircleIcon size={14} />}
-              onClick={() => {
-                if (approvalId) {
-                  addToolApprovalResponse({ id: approvalId, approved: false });
-                }
-              }}
+              onClick={() => window.location.reload()}
             >
-              Reject
+              Refresh
             </Button>
           </div>
-        </Surface>
-      </div>
-    );
-  }
+        </div>
 
-  // Rejected / denied
-  if (
-    part.state === "output-denied" ||
-    ("approval" in part &&
-      (part.approval as { approved?: boolean })?.approved === false)
-  ) {
-    return (
-      <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2">
-            <XCircleIcon size={14} className="text-kumo-danger" />
-            <Text size="xs" variant="secondary" bold>
-              {toolName}
-            </Text>
-            <Badge variant="secondary">Rejected</Badge>
+        {loading && (
+          <Text size="sm" variant="secondary">
+            Loading admin data...
+          </Text>
+        )}
+
+        {error && (
+          <Text size="sm" variant="secondary">
+            {error}
+          </Text>
+        )}
+
+        {!loading && !error && visibleItems.length === 0 && (
+          <Text size="sm" variant="secondary">
+            No records found for this filter.
+          </Text>
+        )}
+
+        {!loading && !error && visibleItems.length > 0 && (
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                    />
+                  </th>
+                  <th>URL</th>
+                  <th>Static verdict</th>
+                  <th>Dynamic state</th>
+                  <th>Dynamic verdict</th>
+                  <th>Live</th>
+                  <th>Tags</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((item) => (
+                  <tr key={item.url} className="admin-table-row">
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedUrls.includes(item.url)}
+                        onChange={() => toggleSelectedUrl(item.url)}
+                      />
+                    </td>
+                    <td>
+                      <div className="admin-table-url">{item.url}</div>
+                    </td>
+                    <td>
+                      <Badge variant={verdictTone(item.verdict)}>
+                        {verdictLabel(item.verdict)}
+                      </Badge>
+                    </td>
+                    <td>{dynamicStatusLabel(item.dynamicAnalysis.status)}</td>
+                    <td>{dynamicVerdictLabel(item)}</td>
+                    <td>{liveStatusLabel(item)}</td>
+                    <td>
+                      <div className="admin-tag-list">
+                        {buildTags(item).map((tag) => (
+                          <span
+                            key={`${item.url}-${tag}`}
+                            className="admin-tag"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <Button
+                        variant="ghost"
+                        shape="square"
+                        icon={<EyeIcon size={16} />}
+                        aria-label={`Open ${item.url}`}
+                        onClick={() => openDetailsInNewTab(item.url)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Surface>
-      </div>
-    );
-  }
-
-  // Executing
-  if (part.state === "input-available" || part.state === "input-streaming") {
-    return (
-      <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2">
-            <GearIcon size={14} className="text-kumo-inactive animate-spin" />
-            <Text size="xs" variant="secondary">
-              Running {toolName}...
-            </Text>
-          </div>
-        </Surface>
-      </div>
-    );
-  }
-
-  return null;
+        )}
+      </Surface>
+    </div>
+  );
 }
-
-// ── Main chat ─────────────────────────────────────────────────────────
 
 function Chat() {
   const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
-  const [showDebug, setShowDebug] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const toasts = useKumoToastManager();
-  const [mcpState, setMcpState] = useState<MCPServersState>({
-    prompts: [],
-    resources: [],
-    servers: {},
-    tools: []
-  });
-  const [showMcpPanel, setShowMcpPanel] = useState(false);
-  const [mcpName, setMcpName] = useState("");
-  const [mcpUrl, setMcpUrl] = useState("");
-  const [isAddingServer, setIsAddingServer] = useState(false);
-  const mcpPanelRef = useRef<HTMLDivElement>(null);
 
-  const agent = useAgent<ChatAgent>({
+  const agent = useAgent<ChatAgent, PhishingAgentState>({
     agent: "ChatAgent",
     onOpen: useCallback(() => setConnected(true), []),
-    onClose: useCallback(() => setConnected(false), []),
-    onError: useCallback(
-      (error: Event) => console.error("WebSocket error:", error),
-      []
-    ),
-    onMcpUpdate: useCallback((state: MCPServersState) => {
-      setMcpState(state);
-    }, []),
-    onMessage: useCallback(
-      (message: MessageEvent) => {
-        try {
-          const data = JSON.parse(String(message.data));
-          if (data.type === "scheduled-task") {
-            toasts.add({
-              title: "Scheduled task completed",
-              description: data.description,
-              timeout: 0
-            });
-          }
-        } catch {
-          // Not JSON or not our event
-        }
-      },
-      [toasts]
-    )
+    onClose: useCallback(() => setConnected(false), [])
   });
 
-  // Close MCP panel when clicking outside
-  useEffect(() => {
-    if (!showMcpPanel) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        mcpPanelRef.current &&
-        !mcpPanelRef.current.contains(e.target as Node)
-      ) {
-        setShowMcpPanel(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMcpPanel]);
-
-  const handleAddServer = async () => {
-    if (!mcpName.trim() || !mcpUrl.trim()) return;
-    setIsAddingServer(true);
-    try {
-      await agent.stub.addServer(mcpName.trim(), mcpUrl.trim());
-      setMcpName("");
-      setMcpUrl("");
-    } catch (e) {
-      console.error("Failed to add MCP server:", e);
-    } finally {
-      setIsAddingServer(false);
-    }
-  };
-
-  const handleRemoveServer = async (serverId: string) => {
-    try {
-      await agent.stub.removeServer(serverId);
-    } catch (e) {
-      console.error("Failed to remove MCP server:", e);
-    }
-  };
-
-  const serverEntries = Object.entries(mcpState.servers);
-  const mcpToolCount = mcpState.tools.length;
-
-  const {
-    messages,
-    sendMessage,
-    clearHistory,
-    addToolApprovalResponse,
-    stop,
-    status
-  } = useAgentChat({
-    agent,
-    onToolCall: async (event) => {
-      if (
-        "addToolOutput" in event &&
-        event.toolCall.toolName === "getUserTimezone"
-      ) {
-        event.addToolOutput({
-          toolCallId: event.toolCall.toolCallId,
-          output: {
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            localTime: new Date().toLocaleTimeString()
-          }
-        });
-      }
-    }
+  const { messages, sendMessage, clearHistory, stop, status } = useAgentChat({
+    agent
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
@@ -343,598 +593,308 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Re-focus the input after streaming ends
   useEffect(() => {
-    if (!isStreaming && textareaRef.current) {
-      textareaRef.current.focus();
+    if (!isStreaming) {
+      textareaRef.current?.focus();
     }
   }, [isStreaming]);
 
   const addFiles = useCallback((files: FileList | File[]) => {
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    const images = Array.from(files).filter((file) =>
+      file.type.startsWith("image/")
+    );
     if (images.length === 0) return;
     setAttachments((prev) => [...prev, ...images.map(createAttachment)]);
   }, []);
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => {
-      const att = prev.find((a) => a.id === id);
-      if (att) URL.revokeObjectURL(att.preview);
-      return prev.filter((a) => a.id !== id);
+      const target = prev.find((item) => item.id === id);
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((item) => item.id !== id);
     });
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.currentTarget === e.target) setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
-    },
-    [addFiles]
-  );
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const files: File[] = [];
-      for (const item of items) {
-        if (item.kind === "file") {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-      if (files.length > 0) {
-        e.preventDefault();
-        addFiles(files);
-      }
-    },
-    [addFiles]
-  );
+  const resetChat = useCallback(async () => {
+    for (const attachment of attachments) {
+      URL.revokeObjectURL(attachment.preview);
+    }
+    setAttachments([]);
+    await agent.stub.resetSessionView();
+    await clearHistory();
+  }, [agent.stub, attachments, clearHistory]);
 
   const send = useCallback(async () => {
     const text = input.trim();
     if ((!text && attachments.length === 0) || isStreaming) return;
-    setInput("");
 
     const parts: Array<
       | { type: "text"; text: string }
       | { type: "file"; mediaType: string; url: string }
     > = [];
-    if (text) parts.push({ type: "text", text });
 
-    for (const att of attachments) {
-      const dataUri = await fileToDataUri(att.file);
-      parts.push({ type: "file", mediaType: att.mediaType, url: dataUri });
+    if (text) {
+      parts.push({ type: "text", text });
     }
 
-    for (const att of attachments) URL.revokeObjectURL(att.preview);
-    setAttachments([]);
+    for (const attachment of attachments) {
+      const dataUri = await fileToDataUri(attachment.file);
+      parts.push({
+        type: "file",
+        mediaType: attachment.mediaType,
+        url: dataUri
+      });
+      URL.revokeObjectURL(attachment.preview);
+    }
 
+    setInput("");
+    setAttachments([]);
     sendMessage({ role: "user", parts });
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [input, attachments, isStreaming, sendMessage]);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  }, [attachments, input, isStreaming, sendMessage]);
 
   return (
-    <div
-      className="flex flex-col h-screen bg-kumo-elevated relative"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-kumo-elevated/80 backdrop-blur-sm border-2 border-dashed border-kumo-brand rounded-xl m-2 pointer-events-none">
-          <div className="flex flex-col items-center gap-2 text-kumo-brand">
-            <ImageIcon size={40} />
-            <Text variant="heading3">Drop images here</Text>
+    <div className="app-shell simple-shell">
+      <Surface className="simple-chat-shell">
+        <div className="simple-header">
+          <div>
+            <h1>PhishGuard</h1>
+            <p>
+              Paste a suspicious SMS, email, or screenshot and get a fast
+              verdict before you click, reply, or pay. Known URLs are answered
+              from a shared reputation database before deeper analysis runs.
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <header className="px-5 py-4 bg-kumo-base border-b border-kumo-line">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-kumo-default">
-              <span className="mr-2">⛅</span>Agent Starter
-            </h1>
-            <Badge variant="secondary">
-              <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              AI Chat
-            </Badge>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
+          <div className="hero-actions">
+            <div className="connection-pill">
               <CircleIcon
-                size={8}
+                size={10}
                 weight="fill"
                 className={connected ? "text-kumo-success" : "text-kumo-danger"}
               />
-              <Text size="xs" variant="secondary">
-                {connected ? "Connected" : "Disconnected"}
-              </Text>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <BugIcon size={14} className="text-kumo-inactive" />
-              <Switch
-                checked={showDebug}
-                onCheckedChange={setShowDebug}
-                size="sm"
-                aria-label="Toggle debug mode"
-              />
-            </div>
-            <ThemeToggle />
-            <div className="relative" ref={mcpPanelRef}>
-              <Button
-                variant="secondary"
-                icon={<PlugsConnectedIcon size={16} />}
-                onClick={() => setShowMcpPanel(!showMcpPanel)}
-              >
-                MCP
-                {mcpToolCount > 0 && (
-                  <Badge variant="primary" className="ml-1.5">
-                    <WrenchIcon size={10} className="mr-0.5" />
-                    {mcpToolCount}
-                  </Badge>
-                )}
-              </Button>
-
-              {/* MCP Dropdown Panel */}
-              {showMcpPanel && (
-                <div className="absolute right-0 top-full mt-2 w-96 z-50">
-                  <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-4">
-                    {/* Panel Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <PlugsConnectedIcon
-                          size={16}
-                          className="text-kumo-accent"
-                        />
-                        <Text size="sm" bold>
-                          MCP Servers
-                        </Text>
-                        {serverEntries.length > 0 && (
-                          <Badge variant="secondary">
-                            {serverEntries.length}
-                          </Badge>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        shape="square"
-                        aria-label="Close MCP panel"
-                        icon={<XIcon size={14} />}
-                        onClick={() => setShowMcpPanel(false)}
-                      />
-                    </div>
-
-                    {/* Add Server Form */}
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleAddServer();
-                      }}
-                      className="space-y-2"
-                    >
-                      <input
-                        type="text"
-                        value={mcpName}
-                        onChange={(e) => setMcpName(e.target.value)}
-                        placeholder="Server name"
-                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-1 focus:ring-kumo-accent"
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={mcpUrl}
-                          onChange={(e) => setMcpUrl(e.target.value)}
-                          placeholder="https://mcp.example.com"
-                          className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-1 focus:ring-kumo-accent font-mono"
-                        />
-                        <Button
-                          type="submit"
-                          variant="primary"
-                          size="sm"
-                          icon={<PlusIcon size={14} />}
-                          disabled={
-                            isAddingServer || !mcpName.trim() || !mcpUrl.trim()
-                          }
-                        >
-                          {isAddingServer ? "..." : "Add"}
-                        </Button>
-                      </div>
-                    </form>
-
-                    {/* Server List */}
-                    {serverEntries.length > 0 && (
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {serverEntries.map(([id, server]) => (
-                          <div
-                            key={id}
-                            className="flex items-start justify-between p-2.5 rounded-lg border border-kumo-line"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-kumo-default truncate">
-                                  {server.name}
-                                </span>
-                                <Badge
-                                  variant={
-                                    server.state === "ready"
-                                      ? "primary"
-                                      : server.state === "failed"
-                                        ? "destructive"
-                                        : "secondary"
-                                  }
-                                >
-                                  {server.state}
-                                </Badge>
-                              </div>
-                              <span className="text-xs font-mono text-kumo-subtle truncate block mt-0.5">
-                                {server.server_url}
-                              </span>
-                              {server.state === "failed" && server.error && (
-                                <span className="text-xs text-red-500 block mt-0.5">
-                                  {server.error}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0 ml-2">
-                              {server.state === "authenticating" &&
-                                server.auth_url && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    icon={<SignInIcon size={12} />}
-                                    onClick={() =>
-                                      window.open(
-                                        server.auth_url as string,
-                                        "oauth",
-                                        "width=600,height=800"
-                                      )
-                                    }
-                                  >
-                                    Auth
-                                  </Button>
-                                )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                shape="square"
-                                aria-label="Remove server"
-                                icon={<TrashIcon size={12} />}
-                                onClick={() => handleRemoveServer(id)}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Tool Summary */}
-                    {mcpToolCount > 0 && (
-                      <div className="pt-2 border-t border-kumo-line">
-                        <div className="flex items-center gap-2">
-                          <WrenchIcon size={14} className="text-kumo-subtle" />
-                          <span className="text-xs text-kumo-subtle">
-                            {mcpToolCount} tool
-                            {mcpToolCount !== 1 ? "s" : ""} available from MCP
-                            servers
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </Surface>
-                </div>
-              )}
+              <span>{connected ? "Connected" : "Connecting..."}</span>
             </div>
             <Button
               variant="secondary"
-              icon={<TrashIcon size={16} />}
-              onClick={clearHistory}
+              icon={<ArrowClockwiseIcon size={16} />}
+              onClick={resetChat}
             >
-              Clear
+              Clear chat
             </Button>
           </div>
         </div>
-      </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">
-          {messages.length === 0 && (
-            <Empty
-              icon={<ChatCircleDotsIcon size={32} />}
-              title="Start a conversation"
-              contents={
-                <div className="flex flex-wrap justify-center gap-2">
-                  {[
-                    "What's the weather in Paris?",
-                    "What timezone am I in?",
-                    "Calculate 5000 * 3",
-                    "Remind me in 5 minutes to take a break"
-                  ].map((prompt) => (
-                    <Button
-                      key={prompt}
-                      variant="outline"
-                      size="sm"
-                      disabled={isStreaming}
-                      onClick={() => {
-                        sendMessage({
-                          role: "user",
-                          parts: [{ type: "text", text: prompt }]
-                        });
-                      }}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
-              }
-            />
-          )}
+        <Surface className="chat-surface">
+          <div className="chat-header">
+            <div>
+              <Text size="sm" bold>
+                Analyze a suspicious message
+              </Text>
+              <Text size="xs" variant="secondary">
+                Paste the text directly or attach an email / SMS screenshot.
+              </Text>
+            </div>
+          </div>
 
-          {messages.map((message: UIMessage, index: number) => {
-            const isUser = message.role === "user";
-            const isLastAssistant =
-              message.role === "assistant" && index === messages.length - 1;
+          <div className="messages-wrap">
+            {messages.length === 0 && (
+              <Empty
+                icon={<WarningIcon size={32} />}
+                title="No message submitted yet"
+                contents="Start with the suspicious text itself. The more of the original wording you paste, the better the verdict."
+              />
+            )}
 
-            return (
-              <div key={message.id} className="space-y-2">
-                {showDebug && (
-                  <pre className="text-[11px] text-kumo-subtle bg-kumo-control rounded-lg p-3 overflow-auto max-h-64">
-                    {JSON.stringify(message, null, 2)}
-                  </pre>
-                )}
+            {messages.map((message: UIMessage, index: number) => {
+              const isUser = message.role === "user";
+              const isLastAssistant =
+                message.role === "assistant" && index === messages.length - 1;
 
-                {/* Tool parts */}
-                {message.parts.filter(isToolUIPart).map((part) => (
-                  <ToolPartView
-                    key={part.toolCallId}
-                    part={part}
-                    addToolApprovalResponse={addToolApprovalResponse}
-                  />
-                ))}
-
-                {/* Reasoning parts */}
-                {message.parts
-                  .filter(
-                    (part) =>
-                      part.type === "reasoning" &&
-                      (part as { text?: string }).text?.trim()
-                  )
-                  .map((part, i) => {
-                    const reasoning = part as {
-                      type: "reasoning";
-                      text: string;
-                      state?: "streaming" | "done";
-                    };
-                    const isDone = reasoning.state === "done" || !isStreaming;
-                    return (
-                      <div key={i} className="flex justify-start">
-                        <details className="max-w-[85%] w-full" open={!isDone}>
-                          <summary className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm select-none">
-                            <BrainIcon size={14} className="text-purple-400" />
-                            <span className="font-medium text-kumo-default">
-                              Reasoning
-                            </span>
-                            {isDone ? (
-                              <span className="text-xs text-kumo-success">
-                                Complete
-                              </span>
-                            ) : (
-                              <span className="text-xs text-kumo-brand">
-                                Thinking...
-                              </span>
-                            )}
-                            <CaretDownIcon
-                              size={14}
-                              className="ml-auto text-kumo-inactive"
-                            />
-                          </summary>
-                          <pre className="mt-2 px-3 py-2 rounded-lg bg-kumo-control text-xs text-kumo-default whitespace-pre-wrap overflow-auto max-h-64">
-                            {reasoning.text}
-                          </pre>
-                        </details>
+              return (
+                <div key={message.id} className="message-stack">
+                  {message.parts
+                    .filter(
+                      (part): part is Extract<typeof part, { type: "file" }> =>
+                        part.type === "file" &&
+                        (part as { mediaType?: string }).mediaType?.startsWith(
+                          "image/"
+                        ) === true
+                    )
+                    .map((part, partIndex) => (
+                      <div
+                        key={`${message.id}-file-${partIndex}`}
+                        className={`bubble-row ${isUser ? "user" : "assistant"}`}
+                      >
+                        <img
+                          src={part.url}
+                          alt="Uploaded suspicious message"
+                          className="image-bubble"
+                        />
                       </div>
-                    );
-                  })}
+                    ))}
 
-                {/* Image parts */}
-                {message.parts
-                  .filter(
-                    (part): part is Extract<typeof part, { type: "file" }> =>
-                      part.type === "file" &&
-                      (part as { mediaType?: string }).mediaType?.startsWith(
-                        "image/"
-                      ) === true
-                  )
-                  .map((part, i) => (
-                    <div
-                      key={`file-${i}`}
-                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                    >
-                      <img
-                        src={part.url}
-                        alt="Attachment"
-                        className="max-h-64 rounded-xl border border-kumo-line object-contain"
-                      />
-                    </div>
-                  ))}
+                  {message.parts
+                    .filter((part) => part.type === "text")
+                    .map((part, partIndex) => {
+                      const text = (part as { text: string }).text;
+                      if (!text || isRawToolCallText(text)) return null;
 
-                {/* Text parts */}
-                {message.parts
-                  .filter((part) => part.type === "text")
-                  .map((part, i) => {
-                    const text = (part as { type: "text"; text: string }).text;
-                    if (!text) return null;
+                      if (isUser) {
+                        return (
+                          <div
+                            key={`${message.id}-text-${partIndex}`}
+                            className="bubble-row user"
+                          >
+                            <div className="message-bubble user-bubble">
+                              {text}
+                            </div>
+                          </div>
+                        );
+                      }
 
-                    if (isUser) {
                       return (
-                        <div key={i} className="flex justify-end">
-                          <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-br-md bg-kumo-contrast text-kumo-inverse leading-relaxed">
-                            {text}
+                        <div
+                          key={`${message.id}-text-${partIndex}`}
+                          className="bubble-row assistant"
+                        >
+                          <div className="message-bubble assistant-bubble">
+                            <Streamdown
+                              className="sd-theme"
+                              plugins={{ code }}
+                              controls={false}
+                              isAnimating={isLastAssistant && isStreaming}
+                            >
+                              {text}
+                            </Streamdown>
                           </div>
                         </div>
                       );
-                    }
-
-                    return (
-                      <div key={i} className="flex justify-start">
-                        <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-kumo-base text-kumo-default leading-relaxed">
-                          <Streamdown
-                            className="sd-theme rounded-2xl rounded-bl-md p-3"
-                            plugins={{ code }}
-                            controls={false}
-                            isAnimating={isLastAssistant && isStreaming}
-                          >
-                            {text}
-                          </Streamdown>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            );
-          })}
-
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* Input */}
-      <div className="border-t border-kumo-line bg-kumo-base">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-          className="max-w-3xl mx-auto px-5 py-4"
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-
-          {attachments.length > 0 && (
-            <div className="flex gap-2 mb-2 flex-wrap">
-              {attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="relative group rounded-lg border border-kumo-line bg-kumo-control overflow-hidden"
-                >
-                  <img
-                    src={att.preview}
-                    alt={att.file.name}
-                    className="h-16 w-16 object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(att.id)}
-                    className="absolute top-0.5 right-0.5 rounded-full bg-kumo-contrast/80 text-kumo-inverse p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label={`Remove ${att.file.name}`}
-                  >
-                    <XIcon size={10} />
-                  </button>
+                    })}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            })}
 
-          <div className="flex items-end gap-3 rounded-xl border border-kumo-line bg-kumo-base p-3 shadow-sm focus-within:ring-2 focus-within:ring-kumo-ring focus-within:border-transparent transition-shadow">
-            <Button
-              type="button"
-              variant="ghost"
-              shape="square"
-              aria-label="Attach images"
-              icon={<PaperclipIcon size={18} />}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!connected || isStreaming}
-              className="mb-0.5"
-            />
-            <InputArea
-              ref={textareaRef}
-              value={input}
-              onValueChange={setInput}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
+            {isStreaming && <ProcessingBubble status={status} />}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          <form
+            className="composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              send();
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                if (event.target.files) addFiles(event.target.files);
+                event.target.value = "";
               }}
-              onInput={(e) => {
-                const el = e.currentTarget;
-                el.style.height = "auto";
-                el.style.height = `${el.scrollHeight}px`;
-              }}
-              onPaste={handlePaste}
-              placeholder={
-                attachments.length > 0
-                  ? "Add a message or send images..."
-                  : "Send a message..."
-              }
-              disabled={!connected || isStreaming}
-              rows={1}
-              className="flex-1 ring-0! focus:ring-0! shadow-none! bg-transparent! outline-none! resize-none max-h-40"
             />
-            {isStreaming ? (
+
+            {attachments.length > 0 && (
+              <div className="attachment-row">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="attachment-thumb">
+                    <img src={attachment.preview} alt={attachment.file.name} />
+                    <button
+                      type="button"
+                      aria-label={`Remove ${attachment.file.name}`}
+                      onClick={() => removeAttachment(attachment.id)}
+                    >
+                      <XIcon size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="composer-shell">
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 shape="square"
-                aria-label="Stop generation"
-                icon={<StopIcon size={18} />}
-                onClick={stop}
-                className="mb-0.5"
+                icon={<PaperclipIcon size={16} />}
+                aria-label="Attach screenshot"
+                disabled={!connected || isStreaming}
+                onClick={() => fileInputRef.current?.click()}
               />
-            ) : (
-              <Button
-                type="submit"
-                variant="primary"
-                shape="square"
-                aria-label="Send message"
-                disabled={
-                  (!input.trim() && attachments.length === 0) || !connected
-                }
-                icon={<PaperPlaneRightIcon size={18} />}
-                className="mb-0.5"
+
+              <InputArea
+                ref={textareaRef}
+                value={input}
+                onValueChange={setInput}
+                rows={1}
+                disabled={!connected || isStreaming}
+                placeholder="Paste the suspicious SMS or email here..."
+                className="composer-input"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
+                onInput={(event) => {
+                  const element = event.currentTarget;
+                  element.style.height = "auto";
+                  element.style.height = `${element.scrollHeight}px`;
+                }}
               />
-            )}
-          </div>
-        </form>
-      </div>
+
+              {isStreaming ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  shape="square"
+                  aria-label="Stop generation"
+                  icon={<ShieldSlashIcon size={16} />}
+                  onClick={stop}
+                />
+              ) : (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  shape="square"
+                  aria-label="Analyze message"
+                  disabled={
+                    (!input.trim() && attachments.length === 0) || !connected
+                  }
+                  icon={<PaperPlaneRightIcon size={16} />}
+                />
+              )}
+            </div>
+          </form>
+        </Surface>
+      </Surface>
     </div>
   );
 }
 
 export default function App() {
+  if (window.location.pathname.startsWith("/admin")) {
+    return (
+      <Toasty>
+        <AdminPortal />
+      </Toasty>
+    );
+  }
+
   return (
     <Toasty>
       <Suspense
         fallback={
-          <div className="flex items-center justify-center h-screen text-kumo-inactive">
-            Loading...
+          <div className="loading-screen">
+            <DeviceMobileIcon size={22} />
+            <span>Loading PhishGuard…</span>
           </div>
         }
       >

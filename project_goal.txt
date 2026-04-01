@@ -1,0 +1,1 @@
+User can submit a SMS or email content and check if it is phishing or legitimate.
