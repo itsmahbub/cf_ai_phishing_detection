@@ -1,4 +1,4 @@
-# cf_ai_phishing_detection
+# PhishGuard
 
 PhishGuard is a Cloudflare-native phishing detection app for suspicious SMS, email, and screenshot review.
 
