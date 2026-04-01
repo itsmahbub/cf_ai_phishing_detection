@@ -4,16 +4,16 @@
 
 3. What is wrangler? Tell me more about D1 database.
 
-4. What does memory or state mean in a cloudflare AI app? 
+4. What does memory or state mean in a cloudflare AI app?
 
 5. Browser -> Worker -> Workers AI -> data store -> response. For this architecture, how can I setup a simple app. Give me necessary commands to run.
 
 6. When I create a app using "npm create cloudflare@latest" command, I see following options. Help me understand each of these and tell me which will be best to configure my project so that it becomes easy for me to develop a real production grade application.
-What would you like to start with?
-  ● Hello World example
-  ○ Framework Starter
-  ○ Application Starter
-  ○ Template from a GitHub repo
+   What would you like to start with?
+     ● Hello World example
+     ○ Framework Starter
+     ○ Application Starter
+     ○ Template from a GitHub repo
 
 7. Is there any template in cloudflare github that can I use to create a good project structure where I can easily develop AI agent based application for phishing detection?
 
