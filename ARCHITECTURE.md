@@ -8,8 +8,8 @@ PhishGuard is a Cloudflare-native phishing review app for suspicious SMS, email,
 
 The product has two main surfaces:
 
-- public client app at `/`
-- private admin portal at `/admin`
+- Public client app at `/`
+- Private admin portal at `/admin`
 
 The public app lets a user paste message content or upload a screenshot and receive a phishing verdict. The admin portal lets an operator review stored URLs, static and dynamic analysis results, and manage stored records.
 
@@ -17,46 +17,46 @@ The public app lets a user paste message content or upload a screenshot and rece
 
 ### Public client
 
-- accept suspicious SMS/email text
-- accept screenshot uploads
-- extract URLs and key phishing indicators using Workers AI
-- check a shared URL/message reputation store before running deeper analysis
-- return a short verdict for the user:
+- Accept suspicious SMS/email text
+- Accept screenshot uploads
+- Extract URLs and key phishing indicators using Workers AI
+- Check a shared URL/message reputation store before running deeper analysis
+- Return a short verdict for the user:
   - likely phishing
   - likely legitimate
   - needs human review
-- show a lightweight step-by-step progress UI while analysis is running
-- keep per-session chat history
+- Show a lightweight step-by-step progress UI while analysis is running
+- Keep per-session chat history
 
 ### Shared reputation database
 
-- store normalized URLs
-- store duplicate-message fingerprints
-- reuse known verdicts on future submissions
-- save both static-analysis results and background dynamic-analysis results
+- Store normalized URLs
+- Store message fingerprints
+- Reuse known verdicts on future submissions
+- Save both static-analysis results and background dynamic-analysis results
 
 ### Dynamic URL analysis
 
-- queue new URLs into a Cloudflare Workflow
-- open URLs with Cloudflare Browser Rendering
-- capture:
-  - final URL
-  - page title
-  - visible text sample
-  - screenshot
-- use Workers AI to infer the brand being represented by the rendered page
-- compare brand inference with the URL/domain
-- store dynamic-analysis verdict and rationale
+- Queue new URLs into a Cloudflare Workflow
+- Open URLs with Cloudflare Browser Rendering
+- Capture:
+  - Final URL
+  - Page title
+  - Visible texts
+  - Screenshot
+- Use Workers AI to infer the brand being represented by the rendered page
+- Compare brand inference with the URL/domain
+- Store dynamic-analysis verdict and rationale
 
 ### Admin portal
 
-- protected by Cloudflare Access
-- shows a simple review table
-- filter records by:
+- Protected by Cloudflare Access
+- Shows a simple review table
+- Filter records by:
   - all
   - phishing
   - legitimate
-- display columns such as:
+- Display columns such as:
   - URL
   - static verdict
   - dynamic analysis state
@@ -78,19 +78,18 @@ The chat experience is built on Cloudflare Agents. The `ChatAgent` class handles
 
 ### Workers AI
 
-Workers AI is used in two places:
+Workers AI is used in three model calls:
 
-1. static extraction from the submitted message or screenshot
-2. final phishing verdict generation
-
-It is also used during dynamic analysis to infer the brand represented by the rendered destination page.
+1. To extract structured phishing-review data from the user submission, using a vision-capable model for image-only screenshots
+2. To generate the main phishing verdict from the extracted structured data
+3. To analyze rendered landing-page metadata and visible text in the background workflow to infer impersonated brand and phishing risk
 
 ### Durable Objects
 
 Durable Objects are used for two kinds of state:
 
-- session-oriented agent state
-- global URL reputation storage
+- Session-oriented agent state
+- Global URL reputation storage
 
 The `UrlReputationStore` Durable Object acts as the shared database for URL records and duplicate-message fingerprints.
 

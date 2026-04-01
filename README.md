@@ -30,7 +30,7 @@ For a deeper technical walkthrough, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 1. User submits suspicious content.
 2. The app extracts the message text, URLs, and phishing indicators.
 3. It checks the shared reputation database first.
-4. If the URL is already known, it returns the stored verdict.
+4. If the URL or message is already known, it returns the stored verdict.
 5. If it is new, the app runs static AI analysis and returns a verdict.
 6. New URLs are queued for background dynamic analysis.
 
